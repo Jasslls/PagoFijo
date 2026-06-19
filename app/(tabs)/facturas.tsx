@@ -267,7 +267,16 @@ export default function FacturasScreen() {
         try {
             let uploadedProofUri = data.proofUri;
             if (data.proofUri) {
-                uploadedProofUri = await uploadImageAsync(uid, data.proofUri);
+                try {
+                    uploadedProofUri = await uploadImageAsync(uid, data.proofUri);
+                } catch (err) {
+                    console.error("Failed to upload image, saving without photo:", err);
+                    Alert.alert(
+                        "Advertencia",
+                        "No se pudo subir la foto a la nube. La factura se guardará pero sin la foto."
+                    );
+                    uploadedProofUri = undefined;
+                }
             }
 
             if (editing?.id) {
@@ -327,9 +336,13 @@ export default function FacturasScreen() {
             }
             setModalOpen(false);
             loadAll(); // Actualizar UI inmediatamente
-            await syncBusinessIntelligence(uid); // Generar recurrentes y actualizar riesgos
-            loadAll(); // Refrescar en caso de que se hayan generado nuevas facturas
+            
+            // Ejecutar BI en segundo plano de manera segura
+            syncBusinessIntelligence(uid)
+                .then(() => loadAll())
+                .catch(err => console.error("Background sync failed:", err));
         } catch (error) {
+            console.error("Error saving invoice:", error);
             Alert.alert("Error", "No se pudo guardar la factura.");
         }
     }
@@ -340,27 +353,34 @@ export default function FacturasScreen() {
         const newBalance = inv.amount - paid;
         const newStatus = newBalance <= 0 ? "Cobrada" : inv.status;
         
-        await updateInvoice(uid, inv.clientId, inv.id, {
-            paidAmount: paid,
-            status: newStatus
-        });
+        try {
+            await updateInvoice(uid, inv.clientId, inv.id, {
+                paidAmount: paid,
+                status: newStatus
+            });
 
-        await pushActivity(uid, {
-            type: "invoice_partial_paid",
-            invoiceId: inv.id,
-            clientId: inv.clientId,
-            amount: amount,
-            status: newStatus,
-            desc: `Abono a ${inv.id}`,
-            ts: new Date().toISOString()
-        });
+            await pushActivity(uid, {
+                type: "invoice_partial_paid",
+                invoiceId: inv.id,
+                clientId: inv.clientId,
+                amount: amount,
+                status: newStatus,
+                desc: `Abono a ${inv.id}`,
+                ts: new Date().toISOString()
+            });
 
-        loadAll(); // Actualizar UI inmediatamente
-        await syncBusinessIntelligence(uid);
-        if (detailsInvoice?.id === inv.id) {
-            setDetailsInvoice({ ...inv, paidAmount: paid, status: newStatus });
+            loadAll(); // Actualizar UI inmediatamente
+            if (detailsInvoice?.id === inv.id) {
+                setDetailsInvoice({ ...inv, paidAmount: paid, status: newStatus });
+            }
+
+            syncBusinessIntelligence(uid)
+                .then(() => loadAll())
+                .catch(err => console.error("Background sync failed:", err));
+        } catch (error) {
+            console.error("Error register abono:", error);
+            Alert.alert("Error", "No se pudo registrar el abono.");
         }
-        loadAll(); // Refrescar en caso de que se hayan generado nuevas facturas
     }
 
     async function markPaid(inv: Invoice) {
@@ -370,7 +390,13 @@ export default function FacturasScreen() {
             try {
                 let uploadedUri = photoUri;
                 if (photoUri) {
-                    uploadedUri = await uploadImageAsync(uid, photoUri);
+                    try {
+                        uploadedUri = await uploadImageAsync(uid, photoUri);
+                    } catch (err) {
+                        console.error("Failed to upload markPaid image:", err);
+                        Alert.alert("Advertencia", "No se pudo subir la foto del comprobante, pero se cobrará igualmente.");
+                        uploadedUri = undefined;
+                    }
                 }
 
                 await updateInvoice(uid, inv.clientId, inv.id, { 
@@ -389,9 +415,12 @@ export default function FacturasScreen() {
                     proofUri: uploadedUri
                 });
                 loadAll(); // Actualizar UI inmediatamente
-                await syncBusinessIntelligence(uid); // Update Risk Scores
-                loadAll(); // Refrescar en caso de que se hayan generado nuevas facturas
+                
+                syncBusinessIntelligence(uid)
+                    .then(() => loadAll())
+                    .catch(err => console.error("Background sync failed:", err));
             } catch (error) {
+                console.error("Error markPaid:", error);
                 Alert.alert("Error", "No se pudo marcar como cobrada.");
             }
         };
@@ -440,9 +469,12 @@ export default function FacturasScreen() {
                     ts: new Date().toISOString()
                 });
                 loadAll(); // Actualizar UI inmediatamente
-                await syncBusinessIntelligence(uid); // Update Risk Scores
-                loadAll(); // Refrescar en caso de que se hayan generado nuevas facturas
+                
+                syncBusinessIntelligence(uid)
+                    .then(() => loadAll())
+                    .catch(err => console.error("Background sync failed:", err));
             } catch (error) {
+                console.error("Error deleteInvoice:", error);
                 Alert.alert("Error", "No se pudo eliminar la factura.");
             }
         };
