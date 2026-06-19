@@ -187,6 +187,16 @@ export default function FacturasScreen() {
         }
     }
 
+    // When invoices refresh (e.g. after background photo upload), keep details modal in sync
+    React.useEffect(() => {
+        if (detailsInvoice && invoices.length > 0) {
+            const fresh = invoices.find(inv => inv.id === detailsInvoice.id && inv.clientId === detailsInvoice.clientId);
+            if (fresh && fresh.proofUri !== detailsInvoice.proofUri) {
+                setDetailsInvoice(fresh);
+            }
+        }
+    }, [invoices]);
+
     useFocusEffect(
         useCallback(() => {
             if (params.q) {
