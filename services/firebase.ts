@@ -7,6 +7,7 @@ import {
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { Platform } from "react-native";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCobgv9hPviWWJF6OJig00mJzXU4vhtnhs",
@@ -41,8 +42,26 @@ export async function uploadImageAsync(uid: string, uri: string): Promise<string
     }
 
     try {
-        const response = await fetch(uri);
-        const blob = await response.blob();
+        let blob: Blob;
+        if (Platform.OS === "web" || uri.startsWith("data:") || uri.startsWith("blob:")) {
+            const response = await fetch(uri);
+            blob = await response.blob();
+        } else {
+            // En plataformas nativas, XMLHttpRequest es mucho más confiable para URIs locales file://
+            blob = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.onload = function () {
+                    resolve(xhr.response as Blob);
+                };
+                xhr.onerror = function (e) {
+                    console.error("XHR error loading local file:", e);
+                    reject(new TypeError("Error de red al cargar el archivo local"));
+                };
+                xhr.responseType = "blob";
+                xhr.open("GET", uri, true);
+                xhr.send(null);
+            });
+        }
 
         const filename = `users/${uid}/invoices/${Date.now()}_proof.jpg`;
         const storageRef = ref(storage, filename);

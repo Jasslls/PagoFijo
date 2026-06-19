@@ -191,7 +191,7 @@ export default function FacturasScreen() {
     React.useEffect(() => {
         if (detailsInvoice && invoices.length > 0) {
             const fresh = invoices.find(inv => inv.id === detailsInvoice.id && inv.clientId === detailsInvoice.clientId);
-            if (fresh && fresh.proofUri !== detailsInvoice.proofUri) {
+            if (fresh && JSON.stringify(fresh) !== JSON.stringify(detailsInvoice)) {
                 setDetailsInvoice(fresh);
             }
         }
@@ -287,12 +287,20 @@ export default function FacturasScreen() {
                     newStatus = (data.due && data.due < todayKey) ? "Vencida" : "Pendiente";
                 }
 
+                let currentProofUri = editing.proofUri || "";
+                if (!data.proofUri) {
+                    currentProofUri = "";
+                } else if (data.proofUri.startsWith("https://firebasestorage.googleapis.com")) {
+                    currentProofUri = data.proofUri;
+                }
+
                 // Save invoice immediately WITHOUT waiting for image upload
                 await updateInvoice(uid, data.clientId, editing.id, {
                     desc: data.desc,
                     amount: data.amount,
                     due: data.due,
                     status: newStatus,
+                    proofUri: currentProofUri,
                 });
 
                 await pushActivity(uid, {
@@ -306,14 +314,17 @@ export default function FacturasScreen() {
                     ts: new Date().toISOString()
                 });
 
-                // Upload image in background, then update proofUri
-                if (data.proofUri) {
+                // Upload image in background, then update proofUri (only if it is a new local image)
+                if (data.proofUri && !data.proofUri.startsWith("https://firebasestorage.googleapis.com")) {
                     const clientId = data.clientId;
                     const invoiceId = editing.id;
                     uploadImageAsync(uid, data.proofUri)
                         .then(url => updateInvoice(uid, clientId, invoiceId, { proofUri: url }))
                         .then(() => loadAll())
-                        .catch(err => console.error("Background image upload failed:", err));
+                        .catch(err => {
+                            console.error("Background image upload failed:", err);
+                            Alert.alert("Error de subida", "La factura se guardó, pero la foto no se pudo subir: " + (err.message || err));
+                        });
                 }
             } else {
                 if (!isPremium && invoices.length >= 20) {
@@ -328,6 +339,7 @@ export default function FacturasScreen() {
                     amount: data.amount,
                     due: data.due,
                     status: data.status,
+                    proofUri: "",
                 });
 
                 await pushActivity(uid, {
@@ -347,7 +359,10 @@ export default function FacturasScreen() {
                     uploadImageAsync(uid, data.proofUri)
                         .then(url => updateInvoice(uid, clientId, docId, { proofUri: url }))
                         .then(() => loadAll())
-                        .catch(err => console.error("Background image upload failed:", err));
+                        .catch(err => {
+                            console.error("Background image upload failed:", err);
+                            Alert.alert("Error de subida", "La factura se creó, pero la foto no se pudo subir: " + (err.message || err));
+                        });
                 }
             }
             
