@@ -28,6 +28,7 @@ import { openWhatsApp } from "../../utils/whatsapp";
 import { useAuth } from "../../context/AuthContext";
 import { usePremium } from "../../hooks/usePremium";
 import { saveSession } from "../../services/auth";
+import { uploadImageAsync } from "../../services/firebase";
 import {
     addInvoice,
     deleteInvoice,
@@ -264,6 +265,11 @@ export default function FacturasScreen() {
     async function saveInvoiceData(data: Omit<Invoice, "id"> & { id?: string }) {
         if (!uid) return;
         try {
+            let uploadedProofUri = data.proofUri;
+            if (data.proofUri) {
+                uploadedProofUri = await uploadImageAsync(uid, data.proofUri);
+            }
+
             if (editing?.id) {
                 let newStatus = data.status;
                 const paid = editing.paidAmount || 0;
@@ -281,7 +287,7 @@ export default function FacturasScreen() {
                     amount: data.amount,
                     due: data.due,
                     status: newStatus,
-                    proofUri: data.proofUri
+                    proofUri: uploadedProofUri
                 });
 
                 await pushActivity(uid, {
@@ -305,7 +311,7 @@ export default function FacturasScreen() {
                     amount: data.amount,
                     due: data.due,
                     status: data.status,
-                    proofUri: data.proofUri
+                    proofUri: uploadedProofUri
                 });
 
                 await pushActivity(uid, {
@@ -360,9 +366,14 @@ export default function FacturasScreen() {
 
         const run = async (photoUri?: string) => {
             try {
+                let uploadedUri = photoUri;
+                if (photoUri) {
+                    uploadedUri = await uploadImageAsync(uid, photoUri);
+                }
+
                 await updateInvoice(uid, inv.clientId, inv.id, { 
                     status: "Cobrada",
-                    proofUri: photoUri
+                    proofUri: uploadedUri
                 });
                 await pushActivity(uid, {
                     type: "invoice_paid",
@@ -373,7 +384,7 @@ export default function FacturasScreen() {
                     desc: inv.desc,
                     due: inv.due,
                     ts: new Date().toISOString(),
-                    proofUri: photoUri
+                    proofUri: uploadedUri
                 });
                 await syncBusinessIntelligence(uid); // Update Risk Scores
                 loadAll();
