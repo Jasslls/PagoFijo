@@ -48,7 +48,7 @@ export type Activity = {
     proofUri?: string; // ✅ Nuevo
 };
 // ─── Premium ─────────────────────────────────────────────────────────────────
-export type PremiumPlan = "none" | "trial" | "monthly" | "annual";
+export type PremiumPlan = "none" | "trial" | "monthly" | "annual" | "lifetime";
 
 export interface PremiumStatus {
     plan: PremiumPlan;

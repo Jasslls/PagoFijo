@@ -12,8 +12,7 @@ import {
 } from "react-native";
 import { usePremium } from "../hooks/usePremium";
 import { lightColors, useAppColors } from "../themes/colors";
-
-import { PremiumWelcomeContent, PremiumWelcomeModal } from "./PremiumWelcomeModal";
+import { PremiumWelcomeContent } from "./PremiumWelcomeModal";
 
 const FEATURES = [
     { icon: "🤖", text: "Fijito — Asistente Financiero IA" },
@@ -23,9 +22,8 @@ const FEATURES = [
     { icon: "🔁", text: "Facturas recurrentes (semanal/mensual/anual)" },
     { icon: "📈", text: "Expansión de registros (clientes y facturas)" },
     { icon: "🔔", text: "Notificaciones proactivas inteligentes" },
+    { icon: "📷", text: "Fotografías en facturas y productos" },
 ];
-
-type Plan = "monthly" | "annual";
 
 interface Props {
     visible: boolean;
@@ -36,36 +34,26 @@ interface Props {
 export function PaywallModal({ visible, onClose, onActivated }: Props) {
     const colors = useAppColors();
     const styles = getStyles(colors);
-    const { trialAvailable, activateTrial, loading } = usePremium();
+    const { activateLifetime, loading } = usePremium();
 
-    const [selectedPlan, setSelectedPlan] = useState<Plan>("annual");
     const [activating, setActivating] = useState(false);
     const [welcomeVisible, setWelcomeVisible] = useState(false);
 
-    const handleTrial = async () => {
+    const handleActivateFree = async () => {
         setActivating(true);
         try {
-            await activateTrial();
+            await activateLifetime();
             setWelcomeVisible(true);
         } catch {
             if (Platform.OS === "web") {
-                window.alert("Error: No se pudo activar la prueba. Intenta de nuevo.");
+                window.alert("Error: No se pudo activar el plan. Intenta de nuevo.");
             } else {
-                Alert.alert("Error", "No se pudo activar la prueba. Intenta de nuevo.");
+                Alert.alert("Error", "No se pudo activar el plan. Intenta de nuevo.");
             }
         } finally {
             setActivating(false);
         }
     };
-
-    const handleUpgrade = () => {
-        if (Platform.OS === "web") {
-            window.alert("Próximamente");
-        } else {
-            Alert.alert("Próximamente", "", [{ text: "OK" }]);
-        }
-    };
-
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -73,16 +61,17 @@ export function PaywallModal({ visible, onClose, onActivated }: Props) {
 
                 {welcomeVisible ? (
                     <View style={{ width: "100%", padding: 20 }}>
-                        <PremiumWelcomeContent 
+                        <PremiumWelcomeContent
                             onClose={() => {
                                 setWelcomeVisible(false);
                                 onActivated?.();
                                 onClose();
-                            }} 
+                            }}
                         />
                     </View>
                 ) : (
                     <View style={styles.sheet}>
+                        {/* Header */}
                         <View style={styles.header}>
                             <Pressable onPress={onClose} style={styles.closeBtn}>
                                 <Text style={styles.closeText}>✕</Text>
@@ -92,6 +81,11 @@ export function PaywallModal({ visible, onClose, onActivated }: Props) {
                             <Text style={styles.headerSub}>
                                 Transforma tu cobranza con inteligencia artificial
                             </Text>
+
+                            {/* Badge gratis */}
+                            <View style={styles.freeBadge}>
+                                <Text style={styles.freeBadgeText}>🎁 GRATIS DE POR VIDA</Text>
+                            </View>
                         </View>
 
                         <ScrollView
@@ -107,72 +101,34 @@ export function PaywallModal({ visible, onClose, onActivated }: Props) {
                                 </View>
                             ))}
 
-                            <Text style={[styles.sectionLabel, { marginTop: 20 }]}>ELIGE TU PLAN</Text>
-                            <View style={styles.planRow}>
-                                <Pressable
-                                    onPress={() => setSelectedPlan("monthly")}
-                                    style={[styles.planCard, selectedPlan === "monthly" && styles.planCardActive]}
-                                >
-                                    <Text style={[styles.planName, selectedPlan === "monthly" && styles.planNameActive]}>
-                                        Mensual
-                                    </Text>
-                                    <Text style={[styles.planPrice, selectedPlan === "monthly" && styles.planPriceActive]}>
-                                        $4.99
-                                    </Text>
-                                    <Text style={[styles.planPer, selectedPlan === "monthly" && { color: colors.primary }]}>
-                                        /mes
-                                    </Text>
-                                </Pressable>
-
-                                <Pressable
-                                    onPress={() => setSelectedPlan("annual")}
-                                    style={[styles.planCard, selectedPlan === "annual" && styles.planCardActive]}
-                                >
-                                    <View style={styles.saveBadge}>
-                                        <Text style={styles.saveBadgeText}>Ahorra 30%</Text>
-                                    </View>
-                                    <Text style={[styles.planName, selectedPlan === "annual" && styles.planNameActive]}>
-                                        Anual
-                                    </Text>
-                                    <Text style={[styles.planPrice, selectedPlan === "annual" && styles.planPriceActive]}>
-                                        $3.49
-                                    </Text>
-                                    <Text style={[styles.planPer, selectedPlan === "annual" && { color: colors.primary }]}>
-                                        /mes
-                                    </Text>
-                                    <Text style={[styles.planBilled, selectedPlan === "annual" && { color: colors.muted }]}>
-                                        US$41.99/año
-                                    </Text>
-                                </Pressable>
+                            {/* Destacado precio */}
+                            <View style={styles.priceBox}>
+                                <Text style={styles.priceStrike}>$4.99/mes</Text>
+                                <Text style={styles.priceFree}>$0.00</Text>
+                                <Text style={styles.priceLabel}>Para siempre · Sin tarjeta requerida</Text>
                             </View>
 
-                            {trialAvailable && (
-                                <Pressable
-                                    onPress={handleTrial}
-                                    disabled={activating}
-                                    style={({ pressed }) => [styles.trialBtn, pressed && { opacity: 0.8 }]}
-                                >
-                                    {activating ? (
-                                        <ActivityIndicator color={colors.primary} />
-                                    ) : (
-                                        <Text style={styles.trialBtnText}>
-                                            ⚡ Probar Premium gratis por 24 horas
-                                        </Text>
-                                    )}
-                                </Pressable>
-                            )}
-
+                            {/* CTA principal */}
                             <Pressable
-                                onPress={handleUpgrade}
-                                style={({ pressed }) => [styles.ctaBtn, pressed && { opacity: 0.85 }]}
+                                onPress={handleActivateFree}
+                                disabled={activating || loading}
+                                style={({ pressed }) => [
+                                    styles.ctaBtn,
+                                    pressed && { opacity: 0.85 },
+                                    (activating || loading) && { opacity: 0.6 },
+                                ]}
                             >
-                                <Text style={styles.ctaBtnText}>
-                                    Continuar con {selectedPlan === "monthly" ? "Mensual" : "Anual"}
-                                </Text>
+                                {activating ? (
+                                    <ActivityIndicator color="#fff" />
+                                ) : (
+                                    <Text style={styles.ctaBtnText}>
+                                        🚀 Activar Premium Gratis
+                                    </Text>
+                                )}
                             </Pressable>
 
                             <Text style={styles.disclaimer}>
-                                Cancela cuando quieras · Pago 100% seguro
+                                Sin compromisos · Sin pagos · Acceso inmediato
                             </Text>
                         </ScrollView>
                     </View>
@@ -181,8 +137,6 @@ export function PaywallModal({ visible, onClose, onActivated }: Props) {
         </Modal>
     );
 }
-
-
 
 const getStyles = (colors: typeof lightColors) => StyleSheet.create({
     overlay: {
@@ -220,7 +174,25 @@ const getStyles = (colors: typeof lightColors) => StyleSheet.create({
     closeText: { color: "#fff", fontWeight: "800", fontSize: 14 },
     crown: { fontSize: 44, marginBottom: 8 },
     headerTitle: { color: "#fff", fontSize: 22, fontWeight: "900", marginBottom: 4 },
-    headerSub: { color: "rgba(255,255,255,0.8)", fontSize: 14, textAlign: "center", fontWeight: "600" },
+    headerSub: {
+        color: "rgba(255,255,255,0.8)",
+        fontSize: 14,
+        textAlign: "center",
+        fontWeight: "600",
+        marginBottom: 14,
+    },
+    freeBadge: {
+        backgroundColor: "#22c55e",
+        borderRadius: 999,
+        paddingHorizontal: 16,
+        paddingVertical: 6,
+    },
+    freeBadgeText: {
+        color: "#fff",
+        fontWeight: "900",
+        fontSize: 13,
+        letterSpacing: 0.5,
+    },
 
     body: { padding: 20, paddingBottom: 36 },
 
@@ -244,55 +216,48 @@ const getStyles = (colors: typeof lightColors) => StyleSheet.create({
     featureText: { flex: 1, color: colors.text, fontWeight: "600", fontSize: 14 },
     check: { color: "#22c55e", fontWeight: "900", fontSize: 16 },
 
-    planRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
-    planCard: {
-        flex: 1,
-        borderWidth: 2,
-        borderColor: colors.border,
-        borderRadius: 16,
-        padding: 14,
+    priceBox: {
         alignItems: "center",
-        gap: 2,
-        position: "relative",
+        marginVertical: 24,
+        padding: 20,
+        backgroundColor: colors.primary + "12",
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: colors.primary + "30",
     },
-    planCardActive: {
-        borderColor: colors.primary,
-        backgroundColor: colors.primary + "10",
+    priceStrike: {
+        color: colors.muted,
+        fontSize: 16,
+        fontWeight: "600",
+        textDecorationLine: "line-through",
+        marginBottom: 4,
     },
-    planName: { color: colors.muted, fontWeight: "800", fontSize: 13 },
-    planNameActive: { color: colors.primary },
-    planPrice: { color: colors.text, fontWeight: "900", fontSize: 26 },
-    planPriceActive: { color: colors.primary },
-    planPer: { color: colors.muted, fontWeight: "600", fontSize: 13 },
-    planBilled: { color: colors.muted, fontWeight: "600", fontSize: 11, marginTop: 2 },
-    saveBadge: {
-        position: "absolute",
-        top: -10,
-        backgroundColor: "#22c55e",
-        borderRadius: 999,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
+    priceFree: {
+        color: colors.primary,
+        fontSize: 48,
+        fontWeight: "900",
+        lineHeight: 56,
     },
-    saveBadgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
+    priceLabel: {
+        color: colors.muted,
+        fontSize: 13,
+        fontWeight: "600",
+        marginTop: 4,
+    },
 
     ctaBtn: {
-        backgroundColor: colors.primary,
+        backgroundColor: "#22c55e",
         borderRadius: 14,
-        paddingVertical: 16,
+        paddingVertical: 18,
         alignItems: "center",
         marginBottom: 12,
+        shadowColor: "#22c55e",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+        elevation: 6,
     },
-    ctaBtnText: { color: "#fff", fontWeight: "900", fontSize: 16 },
-
-    trialBtn: {
-        borderWidth: 1.5,
-        borderColor: colors.primary,
-        borderRadius: 14,
-        paddingVertical: 14,
-        alignItems: "center",
-        marginBottom: 16,
-    },
-    trialBtnText: { color: colors.primary, fontWeight: "800", fontSize: 15 },
+    ctaBtnText: { color: "#fff", fontWeight: "900", fontSize: 17 },
 
     disclaimer: {
         color: colors.muted,

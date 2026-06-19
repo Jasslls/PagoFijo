@@ -1,6 +1,9 @@
 import { router } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+    ActionSheetIOS,
+    Alert,
+    Image,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -9,8 +12,10 @@ import {
     StyleSheet,
     Text,
     TextInput,
+    TouchableOpacity,
     View,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 
 import type { Client, Invoice, InvoiceRecurrence, InvoiceStatus } from "../models/types";
 import { setItem } from "../services/storage";
@@ -27,6 +32,7 @@ type Form = {
     due: string;
     status: InvoiceStatus;
     recurrence: InvoiceRecurrence;
+    photoUri: string;
 };
 
 const KEY_CLIENTS_INTENT = "clients_intent_open_new_v1";
@@ -64,6 +70,7 @@ export function InvoiceFormModal({
         due: "",
         status: "Pendiente",
         recurrence: "none",
+        photoUri: "",
     });
 
     useEffect(() => {
@@ -77,6 +84,7 @@ export function InvoiceFormModal({
                 due: initial.due ?? "",
                 status: initial.status,
                 recurrence: initial.recurrence || "none",
+                photoUri: initial.proofUri ?? "",
             });
             return;
         }
@@ -88,6 +96,7 @@ export function InvoiceFormModal({
             due: "",
             status: "Pendiente",
             recurrence: "none",
+            photoUri: "",
         });
     }, [visible, initial, clients]);
 
@@ -123,6 +132,69 @@ export function InvoiceFormModal({
         });
     }
 
+    // ── Foto: picker ──────────────────────────────────────────
+    async function pickFromGallery() {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert("Permiso denegado", "Necesitamos acceso a tu galería para adjuntar fotos.");
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            allowsEditing: true,
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets.length > 0) {
+            setForm((p) => ({ ...p, photoUri: result.assets[0].uri }));
+        }
+    }
+
+    async function pickFromCamera() {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert("Permiso denegado", "Necesitamos acceso a la cámara para tomar fotos.");
+            return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets.length > 0) {
+            setForm((p) => ({ ...p, photoUri: result.assets[0].uri }));
+        }
+    }
+
+    function handlePhotoPress() {
+        if (Platform.OS === "ios") {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options: ["Cancelar", "Tomar foto", "Elegir de galería", ...(form.photoUri ? ["Eliminar foto"] : [])],
+                    cancelButtonIndex: 0,
+                    destructiveButtonIndex: form.photoUri ? 3 : undefined,
+                },
+                (idx) => {
+                    if (idx === 1) pickFromCamera();
+                    else if (idx === 2) pickFromGallery();
+                    else if (idx === 3 && form.photoUri) setForm((p) => ({ ...p, photoUri: "" }));
+                }
+            );
+        } else {
+            Alert.alert(
+                "Adjuntar foto",
+                "¿Cómo quieres agregar la foto?",
+                [
+                    { text: "Cancelar", style: "cancel" },
+                    { text: "📷 Tomar foto", onPress: pickFromCamera },
+                    { text: "🖼 Elegir de galería", onPress: pickFromGallery },
+                    ...(form.photoUri
+                        ? [{ text: "🗑 Eliminar foto", style: "destructive" as const, onPress: () => setForm((p) => ({ ...p, photoUri: "" })) }]
+                        : []),
+                ]
+            );
+        }
+    }
+    // ──────────────────────────────────────────────────────────
+
     async function goToClientsAndOpenNew() {
         await setItem(KEY_CLIENTS_INTENT, true);
 
@@ -147,6 +219,7 @@ export function InvoiceFormModal({
             due: form.due,
             status: form.status,
             recurrence: form.recurrence,
+            proofUri: form.photoUri || undefined,
         });
 
         onClose();
@@ -308,6 +381,36 @@ export function InvoiceFormModal({
                                             } después de la fecha de vencimiento inicial.
                                         </Text>
                                     )}
+
+                                    {/* ── Fotografía ─────────────────────────────────── */}
+                                    <Text style={styles.label}>📷 Fotografía (opcional)</Text>
+                                    <TouchableOpacity
+                                        onPress={handlePhotoPress}
+                                        style={[
+                                            styles.photoBox,
+                                            form.photoUri ? styles.photoBoxFilled : null,
+                                        ]}
+                                        activeOpacity={0.75}
+                                    >
+                                        {form.photoUri ? (
+                                            <>
+                                                <Image
+                                                    source={{ uri: form.photoUri }}
+                                                    style={styles.photoPreview}
+                                                    resizeMode="cover"
+                                                />
+                                                <View style={styles.photoEditBadge}>
+                                                    <Text style={styles.photoEditBadgeText}>✏️ Cambiar</Text>
+                                                </View>
+                                            </>
+                                        ) : (
+                                            <View style={styles.photoPlaceholder}>
+                                                <Text style={styles.photoPlaceholderIcon}>📷</Text>
+                                                <Text style={styles.photoPlaceholderText}>Tomar foto o elegir de galería</Text>
+                                            </View>
+                                        )}
+                                    </TouchableOpacity>
+                                    {/* ──────────────────────────────────────────────── */}
                                 </ScrollView>
 
                                 <View style={styles.footer}>
@@ -387,4 +490,45 @@ const getStyles = (colors: typeof lightColors) => StyleSheet.create({
     emptyBox: { borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 12, marginTop: 10 },
     emptyTitle: { color: colors.text, fontWeight: "900", marginBottom: 4 },
     emptyText: { color: colors.muted, fontWeight: "600" },
-});
+
+    // ── Foto ──────────────────────────────────────────────────
+    photoBox: {
+        borderWidth: 1.5,
+        borderColor: colors.border,
+        borderRadius: 12,
+        borderStyle: "dashed",
+        overflow: "hidden",
+        marginBottom: 10,
+        minHeight: 100,
+    },
+    photoBoxFilled: {
+        borderStyle: "solid",
+        borderColor: colors.primary + "60",
+    },
+    photoPreview: {
+        width: "100%",
+        height: 160,
+    },
+    photoPlaceholder: {
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 24,
+        gap: 8,
+    },
+    photoPlaceholderIcon: { fontSize: 28 },
+    photoPlaceholderText: {
+        color: colors.muted,
+        fontWeight: "700",
+        fontSize: 13,
+    },
+    photoEditBadge: {
+        position: "absolute",
+        bottom: 8,
+        right: 8,
+        backgroundColor: "rgba(0,0,0,0.55)",
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    photoEditBadgeText: { color: "#fff", fontWeight: "800", fontSize: 12 },
+});

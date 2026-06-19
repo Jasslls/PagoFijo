@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { PremiumStatus } from "../models/types";
-import { getPremiumStatus, activateTrial as doActivateTrial, cancelPremium as doCancelPremium } from "../services/premium";
+import { getPremiumStatus, activateTrial as doActivateTrial, cancelPremium as doCancelPremium, activateLifetime as doActivateLifetime } from "../services/premium";
 import { useAuth } from "../context/AuthContext";
 
 
@@ -10,6 +10,7 @@ interface PremiumContextType {
     loading: boolean;
     trialAvailable: boolean;
     activateTrial: () => Promise<void>;
+    activateLifetime: () => Promise<void>;
     cancelPremium: () => Promise<void>;
     refresh: () => Promise<void>;
 }
@@ -27,6 +28,7 @@ const PremiumContext = createContext<PremiumContextType>({
     loading: true,
     trialAvailable: false,
     activateTrial: async () => {},
+    activateLifetime: async () => {},
     cancelPremium: async () => {},
     refresh: async () => {},
 });
@@ -67,6 +69,12 @@ export const PremiumProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setStatus(s);
     };
 
+    const activateLifetime = async () => {
+        if (!uid) return;
+        const s = await doActivateLifetime(uid);
+        setStatus(s);
+    };
+
     const cancelPremium = async () => {
         if (!uid) return;
         const s = await doCancelPremium(uid);
@@ -83,7 +91,8 @@ export const PremiumProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 status, 
                 loading, 
                 trialAvailable, 
-                activateTrial, 
+                activateTrial,
+                activateLifetime,
                 cancelPremium,
                 refresh: load 
             }}

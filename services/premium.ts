@@ -1,9 +1,9 @@
 // services/premium.ts
 // Manages premium status for PagoFijo — stored in Firestore under users/{uid}.premium
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
-export type PremiumPlan = "none" | "trial" | "monthly" | "annual";
+export type PremiumPlan = "none" | "trial" | "monthly" | "annual" | "lifetime";
 
 export interface PremiumStatus {
     plan: PremiumPlan;
@@ -87,6 +87,28 @@ export async function activatePaidPlan(uid: string, plan: "monthly" | "annual"):
 
     const ref = doc(db, "users", uid);
     await setDoc(ref, { premium: premiumData }, { merge: true });
+}
+
+/** Activates lifetime (forever-free) premium — no expiration */
+export async function activateLifetime(uid: string): Promise<PremiumStatus> {
+    const now = new Date();
+    // Far future date = effectively never expires
+    const forever = new Date("2099-12-31T23:59:59Z");
+
+    const premiumData = {
+        plan: "lifetime" as PremiumPlan,
+        activatedAt: now.toISOString(),
+        expiresAt: forever.toISOString(),
+    };
+
+    try {
+        const ref = doc(db, "users", uid);
+        await setDoc(ref, { premium: premiumData }, { merge: true });
+        return resolveStatus(premiumData);
+    } catch (e) {
+        console.error("activateLifetime error:", e);
+        throw e;
+    }
 }
 
 /** Cancels any active premium or trial */

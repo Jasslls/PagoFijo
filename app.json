@@ -13,7 +13,9 @@
       "googleServicesFile": "./GoogleService-Info.plist",
       "bundleIdentifier": "com.jassll.pagifijo",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "PagoFijo necesita acceso a la cámara para adjuntar fotos a tus facturas.",
+        "NSPhotoLibraryUsageDescription": "PagoFijo necesita acceso a tu galería para adjuntar fotos a tus facturas."
       }
     },
     "android": {
@@ -45,7 +47,14 @@
         }
       ],
       "@react-native-firebase/auth",
-      "expo-mail-composer"
+      "expo-mail-composer",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "PagoFijo necesita acceso a tu galería para adjuntar fotos a tus facturas.",
+          "cameraPermission": "PagoFijo necesita acceso a la cámara para adjuntar fotos a tus facturas."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
