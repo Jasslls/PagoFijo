@@ -1,6 +1,6 @@
 import { FontAwesome, Ionicons, MaterialIcons } from "@expo/vector-icons";
 import React, { useState, useEffect } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from "react-native";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator, Image } from "react-native";
 import type { Invoice, InvoiceRecurrence, Activity } from "../models/types";
 import { lightColors, useAppColors } from "../themes/colors";
 import { useAuth } from "../context/AuthContext";
@@ -181,6 +181,18 @@ export function InvoiceDetailsModal({ visible, onClose, invoice, clientName, onA
                         <View style={styles.infoRow}>
                             <MaterialIcons name="event" size={20} color={colors.muted} />
                             <Text style={styles.infoText}>Próximo pago: <Text style={{ fontWeight: "800" }}>{formatDate(invoice.due)}</Text></Text>
+                        </View>
+                    )}
+
+                    {/* Foto / Comprobante adjunto */}
+                    {invoice.proofUri && (
+                        <View style={styles.photoSection}>
+                            <Text style={styles.sectionTitle}>Foto / Comprobante</Text>
+                            <Image
+                                source={{ uri: invoice.proofUri }}
+                                style={styles.photoPreview}
+                                resizeMode="contain"
+                            />
                         </View>
                     )}
 
@@ -393,4 +405,17 @@ const getStyles = (colors: typeof lightColors) => StyleSheet.create({
         borderColor: colors.success + "40",
     },
     fullyPaidText: { color: colors.success, fontWeight: "800", fontSize: 15 },
+    photoSection: {
+        marginTop: 8,
+        marginBottom: 24,
+    },
+    photoPreview: {
+        width: "100%",
+        height: 220,
+        borderRadius: 12,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.border,
+        marginTop: 10,
+    },
 });

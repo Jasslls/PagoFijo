@@ -134,10 +134,12 @@ export function InvoiceFormModal({
 
     // ── Foto: picker ──────────────────────────────────────────
     async function pickFromGallery() {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
-            Alert.alert("Permiso denegado", "Necesitamos acceso a tu galería para adjuntar fotos.");
-            return;
+        if (Platform.OS !== "web") {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+                Alert.alert("Permiso denegado", "Necesitamos acceso a tu galería para adjuntar fotos.");
+                return;
+            }
         }
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
@@ -150,10 +152,12 @@ export function InvoiceFormModal({
     }
 
     async function pickFromCamera() {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== "granted") {
-            Alert.alert("Permiso denegado", "Necesitamos acceso a la cámara para tomar fotos.");
-            return;
+        if (Platform.OS !== "web") {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") {
+                Alert.alert("Permiso denegado", "Necesitamos acceso a la cámara para tomar fotos.");
+                return;
+            }
         }
         const result = await ImagePicker.launchCameraAsync({
             allowsEditing: true,
@@ -165,6 +169,19 @@ export function InvoiceFormModal({
     }
 
     function handlePhotoPress() {
+        if (Platform.OS === "web") {
+            if (form.photoUri) {
+                if (window.confirm("¿Deseas eliminar la foto actual? Presiona Cancelar si deseas seleccionar otra.")) {
+                    setForm((p) => ({ ...p, photoUri: "" }));
+                } else {
+                    pickFromGallery();
+                }
+            } else {
+                pickFromGallery();
+            }
+            return;
+        }
+
         if (Platform.OS === "ios") {
             ActionSheetIOS.showActionSheetWithOptions(
                 {

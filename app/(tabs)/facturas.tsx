@@ -280,7 +280,8 @@ export default function FacturasScreen() {
                     desc: data.desc,
                     amount: data.amount,
                     due: data.due,
-                    status: newStatus
+                    status: newStatus,
+                    proofUri: data.proofUri
                 });
 
                 await pushActivity(uid, {
@@ -303,7 +304,8 @@ export default function FacturasScreen() {
                     desc: data.desc,
                     amount: data.amount,
                     due: data.due,
-                    status: data.status
+                    status: data.status,
+                    proofUri: data.proofUri
                 });
 
                 await pushActivity(uid, {
