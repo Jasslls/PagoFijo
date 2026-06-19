@@ -57,19 +57,17 @@ export async function deleteClient(uid: string, clientId: string): Promise<void>
 
 
 export async function getAllInvoices(uid: string): Promise<Invoice[]> {
-    // Implementación simple: buscar en todos los clientes
     const clients = await getClients(uid);
-    const allInvoices: Invoice[] = [];
-
-    for (const client of clients) {
+    
+    // Consulta las facturas de todos los clientes en paralelo
+    const promises = clients.map(async (client) => {
         const q = query(invoicesColl(uid, client.id));
         const snap = await getDocs(q);
-        snap.docs.forEach(d => {
-            allInvoices.push({ id: d.id, clientId: client.id, ...d.data() } as Invoice);
-        });
-    }
+        return snap.docs.map(d => ({ id: d.id, clientId: client.id, ...d.data() } as Invoice));
+    });
 
-    return allInvoices;
+    const results = await Promise.all(promises);
+    return results.flat();
 }
 
 export async function getInvoicesByClient(uid: string, clientId: string): Promise<Invoice[]> {

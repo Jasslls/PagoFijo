@@ -82,10 +82,11 @@ export async function syncBusinessIntelligence(uid: string) {
             invoicesByClient[inv.clientId].push(inv);
         }
 
-        for (const client of clients) {
+        const riskPromises = clients.map(client => {
             const clientInvoices = invoicesByClient[client.id] || [];
-            await updateClientRiskFirestore(uid, client.id, clientInvoices);
-        }
+            return updateClientRiskFirestore(uid, client.id, clientInvoices);
+        });
+        await Promise.all(riskPromises);
 
         console.log("BI Sync completed successfully.");
     } catch (error) {

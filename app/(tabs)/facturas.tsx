@@ -326,8 +326,9 @@ export default function FacturasScreen() {
                 });
             }
             setModalOpen(false);
-            await syncBusinessIntelligence(uid); // Update Risk Scores
-            loadAll();
+            loadAll(); // Actualizar UI inmediatamente
+            await syncBusinessIntelligence(uid); // Generar recurrentes y actualizar riesgos
+            loadAll(); // Refrescar en caso de que se hayan generado nuevas facturas
         } catch (error) {
             Alert.alert("Error", "No se pudo guardar la factura.");
         }
@@ -354,11 +355,12 @@ export default function FacturasScreen() {
             ts: new Date().toISOString()
         });
 
+        loadAll(); // Actualizar UI inmediatamente
         await syncBusinessIntelligence(uid);
         if (detailsInvoice?.id === inv.id) {
             setDetailsInvoice({ ...inv, paidAmount: paid, status: newStatus });
         }
-        loadAll();
+        loadAll(); // Refrescar en caso de que se hayan generado nuevas facturas
     }
 
     async function markPaid(inv: Invoice) {
@@ -386,8 +388,9 @@ export default function FacturasScreen() {
                     ts: new Date().toISOString(),
                     proofUri: uploadedUri
                 });
+                loadAll(); // Actualizar UI inmediatamente
                 await syncBusinessIntelligence(uid); // Update Risk Scores
-                loadAll();
+                loadAll(); // Refrescar en caso de que se hayan generado nuevas facturas
             } catch (error) {
                 Alert.alert("Error", "No se pudo marcar como cobrada.");
             }
@@ -436,8 +439,9 @@ export default function FacturasScreen() {
                     due: inv.due,
                     ts: new Date().toISOString()
                 });
+                loadAll(); // Actualizar UI inmediatamente
                 await syncBusinessIntelligence(uid); // Update Risk Scores
-                loadAll();
+                loadAll(); // Refrescar en caso de que se hayan generado nuevas facturas
             } catch (error) {
                 Alert.alert("Error", "No se pudo eliminar la factura.");
             }
