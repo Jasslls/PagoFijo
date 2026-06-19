@@ -58,7 +58,7 @@ export async function deleteClient(uid: string, clientId: string): Promise<void>
 
 export async function getAllInvoices(uid: string): Promise<Invoice[]> {
     const clients = await getClients(uid);
-    
+
     // Consulta las facturas de todos los clientes en paralelo
     const promises = clients.map(async (client) => {
         const q = query(invoicesColl(uid, client.id));
@@ -67,7 +67,7 @@ export async function getAllInvoices(uid: string): Promise<Invoice[]> {
     });
 
     const results = await Promise.all(promises);
-    return results.flat();
+    return results.reduce((acc: Invoice[], arr: Invoice[]) => acc.concat(arr), []);
 }
 
 export async function getInvoicesByClient(uid: string, clientId: string): Promise<Invoice[]> {

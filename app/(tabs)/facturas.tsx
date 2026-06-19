@@ -312,7 +312,7 @@ export default function FacturasScreen() {
             } else {
                 if (!isPremium && invoices.length >= 20) {
                     setPaywallVisible(true);
-                    return;
+                    throw new Error("PAYWALL_BLOCKED");
                 }
                 const id = nextInvoiceId();
                 await addInvoice(uid, data.clientId, {
@@ -334,8 +334,9 @@ export default function FacturasScreen() {
                     ts: new Date().toISOString()
                 });
             }
-            setModalOpen(false);
-            loadAll(); // Actualizar UI inmediatamente
+            
+            // Actualizar UI inmediatamente (el modal ya fue cerrado por InvoiceFormModal)
+            loadAll();
             
             // Ejecutar BI en segundo plano de manera segura
             syncBusinessIntelligence(uid)
@@ -343,7 +344,8 @@ export default function FacturasScreen() {
                 .catch(err => console.error("Background sync failed:", err));
         } catch (error) {
             console.error("Error saving invoice:", error);
-            Alert.alert("Error", "No se pudo guardar la factura.");
+            // Re-throw so InvoiceFormModal can catch it and show the error
+            throw error;
         }
     }
 

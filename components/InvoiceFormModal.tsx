@@ -54,7 +54,7 @@ export function InvoiceFormModal({
 }: {
     visible: boolean;
     onClose: () => void;
-    onSave: (data: Omit<Invoice, "id"> & { id?: string }) => void;
+    onSave: (data: Omit<Invoice, "id"> & { id?: string }) => Promise<void>;
     clients: Client[];
     initial?: Invoice | null;
 }) {
@@ -62,6 +62,7 @@ export function InvoiceFormModal({
     const styles = getStyles(colors);
     const { isPremium } = usePremium();
     const [paywallVisible, setPaywallVisible] = useState(false);
+    const [saving, setSaving] = useState(false);
 
     const [form, setForm] = useState<Form>({
         clientId: "",
@@ -219,8 +220,9 @@ export function InvoiceFormModal({
         router.push("/clientes");
     }
 
-    function save() {
+    async function save() {
         if (!clients.length) return;
+        if (saving) return;
 
         const amt = Number(form.amount);
         if (!form.clientId) return;
@@ -228,18 +230,28 @@ export function InvoiceFormModal({
         if (!Number.isFinite(amt) || amt <= 0) return;
         if (!isValidYYYYMMDD(form.due)) return;
 
-        onSave({
-            id: initial?.id,
-            clientId: form.clientId,
-            desc: form.desc.trim(),
-            amount: amt,
-            due: form.due,
-            status: form.status,
-            recurrence: form.recurrence,
-            proofUri: form.photoUri || undefined,
-        });
-
-        onClose();
+        setSaving(true);
+        try {
+            await onSave({
+                id: initial?.id,
+                clientId: form.clientId,
+                desc: form.desc.trim(),
+                amount: amt,
+                due: form.due,
+                status: form.status,
+                recurrence: form.recurrence,
+                proofUri: form.photoUri || undefined,
+            });
+            onClose();
+        } catch (err: any) {
+            // PAYWALL_BLOCKED means the parent showed a paywall, keep the modal open silently
+            if (err?.message !== "PAYWALL_BLOCKED") {
+                console.error("Error saving invoice from modal:", err);
+                Alert.alert("Error", "No se pudo guardar la factura. Intenta de nuevo.");
+            }
+        } finally {
+            setSaving(false);
+        }
     }
 
     return (
@@ -431,12 +443,12 @@ export function InvoiceFormModal({
                                 </ScrollView>
 
                                 <View style={styles.footer}>
-                                    <Pressable onPress={onClose} style={styles.cancel}>
+                                    <Pressable onPress={onClose} style={styles.cancel} disabled={saving}>
                                         <Text style={styles.cancelText}>Cancelar</Text>
                                     </Pressable>
 
-                                    <Pressable onPress={save} style={styles.save}>
-                                        <Text style={styles.saveText}>Guardar</Text>
+                                    <Pressable onPress={() => void save()} style={[styles.save, saving && { opacity: 0.6 }]} disabled={saving}>
+                                        <Text style={styles.saveText}>{saving ? "Guardando..." : "Guardar"}</Text>
                                     </Pressable>
                                 </View>
                             </>
