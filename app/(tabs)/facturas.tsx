@@ -265,20 +265,6 @@ export default function FacturasScreen() {
     async function saveInvoiceData(data: Omit<Invoice, "id"> & { id?: string }) {
         if (!uid) return;
         try {
-            let uploadedProofUri = data.proofUri;
-            if (data.proofUri) {
-                try {
-                    uploadedProofUri = await uploadImageAsync(uid, data.proofUri);
-                } catch (err) {
-                    console.error("Failed to upload image, saving without photo:", err);
-                    Alert.alert(
-                        "Advertencia",
-                        "No se pudo subir la foto a la nube. La factura se guardará pero sin la foto."
-                    );
-                    uploadedProofUri = undefined;
-                }
-            }
-
             if (editing?.id) {
                 let newStatus = data.status;
                 const paid = editing.paidAmount || 0;
@@ -291,12 +277,12 @@ export default function FacturasScreen() {
                     newStatus = (data.due && data.due < todayKey) ? "Vencida" : "Pendiente";
                 }
 
+                // Save invoice immediately WITHOUT waiting for image upload
                 await updateInvoice(uid, data.clientId, editing.id, {
                     desc: data.desc,
                     amount: data.amount,
                     due: data.due,
                     status: newStatus,
-                    proofUri: uploadedProofUri
                 });
 
                 await pushActivity(uid, {
@@ -309,18 +295,29 @@ export default function FacturasScreen() {
                     due: data.due,
                     ts: new Date().toISOString()
                 });
+
+                // Upload image in background, then update proofUri
+                if (data.proofUri) {
+                    const clientId = data.clientId;
+                    const invoiceId = editing.id;
+                    uploadImageAsync(uid, data.proofUri)
+                        .then(url => updateInvoice(uid, clientId, invoiceId, { proofUri: url }))
+                        .then(() => loadAll())
+                        .catch(err => console.error("Background image upload failed:", err));
+                }
             } else {
                 if (!isPremium && invoices.length >= 20) {
                     setPaywallVisible(true);
                     throw new Error("PAYWALL_BLOCKED");
                 }
                 const id = nextInvoiceId();
-                await addInvoice(uid, data.clientId, {
+
+                // Save invoice immediately WITHOUT waiting for image upload
+                const docId = await addInvoice(uid, data.clientId, {
                     desc: data.desc,
                     amount: data.amount,
                     due: data.due,
                     status: data.status,
-                    proofUri: uploadedProofUri
                 });
 
                 await pushActivity(uid, {
@@ -333,12 +330,21 @@ export default function FacturasScreen() {
                     due: data.due,
                     ts: new Date().toISOString()
                 });
+
+                // Upload image in background, then update proofUri
+                if (data.proofUri) {
+                    const clientId = data.clientId;
+                    uploadImageAsync(uid, data.proofUri)
+                        .then(url => updateInvoice(uid, clientId, docId, { proofUri: url }))
+                        .then(() => loadAll())
+                        .catch(err => console.error("Background image upload failed:", err));
+                }
             }
             
-            // Actualizar UI inmediatamente (el modal ya fue cerrado por InvoiceFormModal)
+            // Update UI immediately - invoice is already saved
             loadAll();
             
-            // Ejecutar BI en segundo plano de manera segura
+            // Sync BI in background
             syncBusinessIntelligence(uid)
                 .then(() => loadAll())
                 .catch(err => console.error("Background sync failed:", err));
