@@ -266,11 +266,11 @@ export default function LoginScreen() {
     }
 
     async function handleGoogleLogin() {
-        setLoading(true);
         if (Platform.OS === "web") {
             try {
                 const provider = new GoogleAuthProvider();
                 const result = await signInWithPopup(auth, provider);
+                setLoading(true);
                 const fbUser = result.user;
 
                 const session = {
@@ -284,13 +284,21 @@ export default function LoginScreen() {
                 setUser(session);
             } catch (e: any) {
                 console.error("Web Google Login Error:", e);
-                showAlert("Error", e?.message ?? "No se pudo iniciar sesión con Google en la web.");
+                if (e?.code === "auth/popup-blocked") {
+                    showAlert(
+                        "Ventana emergente bloqueada",
+                        "Tu navegador bloqueó la ventana de inicio de sesión de Google. Por favor, permite las ventanas emergentes en la barra de direcciones para este sitio y vuelve a intentarlo."
+                    );
+                } else {
+                    showAlert("Error", e?.message ?? "No se pudo iniciar sesión con Google en la web.");
+                }
             } finally {
                 setLoading(false);
             }
             return;
         }
         
+        setLoading(true);
         await promptAsync();
     }
 
