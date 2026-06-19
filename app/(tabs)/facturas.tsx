@@ -323,7 +323,12 @@ export default function FacturasScreen() {
                         .then(() => loadAll())
                         .catch(err => {
                             console.error("Background image upload failed:", err);
-                            Alert.alert("Error de subida", "La factura se guardó, pero la foto no se pudo subir: " + (err.message || err));
+                            const msg = "La factura se guardó, pero la foto no se pudo subir: " + (err.message || err);
+                            if (Platform.OS === "web") {
+                                alert(msg);
+                            } else {
+                                Alert.alert("Error de subida", msg);
+                            }
                         });
                 }
             } else {
@@ -361,7 +366,12 @@ export default function FacturasScreen() {
                         .then(() => loadAll())
                         .catch(err => {
                             console.error("Background image upload failed:", err);
-                            Alert.alert("Error de subida", "La factura se creó, pero la foto no se pudo subir: " + (err.message || err));
+                            const msg = "La factura se creó, pero la foto no se pudo subir: " + (err.message || err);
+                            if (Platform.OS === "web") {
+                                alert(msg);
+                            } else {
+                                Alert.alert("Error de subida", msg);
+                            }
                         });
                 }
             }
@@ -425,9 +435,14 @@ export default function FacturasScreen() {
                 if (photoUri) {
                     try {
                         uploadedUri = await uploadImageAsync(uid, photoUri);
-                    } catch (err) {
+                    } catch (err: any) {
                         console.error("Failed to upload markPaid image:", err);
-                        Alert.alert("Advertencia", "No se pudo subir la foto del comprobante, pero se cobrará igualmente.");
+                        const msg = "No se pudo subir la foto del comprobante, pero se cobrará igualmente: " + (err.message || err);
+                        if (Platform.OS === "web") {
+                            alert(msg);
+                        } else {
+                            Alert.alert("Advertencia", msg);
+                        }
                         uploadedUri = undefined;
                     }
                 }
