@@ -36,8 +36,8 @@ export async function signOutFirebase() {
 export async function uploadImageAsync(uid: string, uri: string): Promise<string> {
     if (!uri) return "";
     
-    // Si ya es una URL permanente de Firebase Storage, no hace falta volver a subirla
-    if (uri.startsWith("https://firebasestorage.googleapis.com")) {
+    // Si ya es una URL permanente de Firebase Storage o una data URI (base64), no hace falta volver a subirla
+    if (uri.startsWith("https://firebasestorage.googleapis.com") || uri.startsWith("data:")) {
         return uri;
     }
 

@@ -143,12 +143,15 @@ export function InvoiceFormModal({
             }
         }
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images"],
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            quality: 0.8,
+            quality: 0.5,
+            base64: true,
         });
         if (!result.canceled && result.assets.length > 0) {
-            setForm((p) => ({ ...p, photoUri: result.assets[0].uri }));
+            const asset = result.assets[0];
+            const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+            setForm((p) => ({ ...p, photoUri: uri }));
         }
     }
 
@@ -162,10 +165,13 @@ export function InvoiceFormModal({
         }
         const result = await ImagePicker.launchCameraAsync({
             allowsEditing: true,
-            quality: 0.8,
+            quality: 0.5,
+            base64: true,
         });
         if (!result.canceled && result.assets.length > 0) {
-            setForm((p) => ({ ...p, photoUri: result.assets[0].uri }));
+            const asset = result.assets[0];
+            const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+            setForm((p) => ({ ...p, photoUri: uri }));
         }
     }
 

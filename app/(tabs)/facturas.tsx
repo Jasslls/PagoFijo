@@ -290,7 +290,7 @@ export default function FacturasScreen() {
                 let currentProofUri = editing.proofUri || "";
                 if (!data.proofUri) {
                     currentProofUri = "";
-                } else if (data.proofUri.startsWith("https://firebasestorage.googleapis.com")) {
+                } else if (data.proofUri.startsWith("https://firebasestorage.googleapis.com") || data.proofUri.startsWith("data:")) {
                     currentProofUri = data.proofUri;
                 }
 
@@ -315,7 +315,7 @@ export default function FacturasScreen() {
                 });
 
                 // Upload image in background, then update proofUri (only if it is a new local image)
-                if (data.proofUri && !data.proofUri.startsWith("https://firebasestorage.googleapis.com")) {
+                if (data.proofUri && !data.proofUri.startsWith("https://firebasestorage.googleapis.com") && !data.proofUri.startsWith("data:")) {
                     const clientId = data.clientId;
                     const invoiceId = editing.id;
                     uploadImageAsync(uid, data.proofUri)
@@ -344,7 +344,7 @@ export default function FacturasScreen() {
                     amount: data.amount,
                     due: data.due,
                     status: data.status,
-                    proofUri: "",
+                    proofUri: (data.proofUri && data.proofUri.startsWith("data:")) ? data.proofUri : "",
                 });
 
                 await pushActivity(uid, {
@@ -358,8 +358,8 @@ export default function FacturasScreen() {
                     ts: new Date().toISOString()
                 });
 
-                // Upload image in background, then update proofUri
-                if (data.proofUri) {
+                // Upload image in background, then update proofUri (only if it is a new local image)
+                if (data.proofUri && !data.proofUri.startsWith("data:")) {
                     const clientId = data.clientId;
                     uploadImageAsync(uid, data.proofUri)
                         .then(url => updateInvoice(uid, clientId, docId, { proofUri: url }))
@@ -478,11 +478,14 @@ export default function FacturasScreen() {
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
                 allowsEditing: true,
                 aspect: [4, 3],
-                quality: 0.7,
+                quality: 0.5,
+                base64: true,
             });
 
             if (!result.canceled) {
-                run(result.assets[0].uri);
+                const asset = result.assets[0];
+                const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+                run(uri);
             } else {
                 run(); // Mark as paid without photo
             }
