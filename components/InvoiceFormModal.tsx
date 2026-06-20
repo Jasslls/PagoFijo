@@ -25,6 +25,48 @@ import { usePremium } from "../hooks/usePremium";
 import { PaywallModal } from "./PaywallModal";
 
 
+export async function compressImageWeb(uri: string): Promise<string> {
+    return new Promise((resolve) => {
+        const img = new window.Image();
+        img.src = uri;
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+                resolve(uri);
+                return;
+            }
+
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width *= MAX_HEIGHT / height;
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+            resolve(dataUrl);
+        };
+        img.onerror = () => {
+            resolve(uri);
+        };
+    });
+}
+
 type Form = {
     clientId: string;
     desc: string;
@@ -150,8 +192,13 @@ export function InvoiceFormModal({
         });
         if (!result.canceled && result.assets.length > 0) {
             const asset = result.assets[0];
-            const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-            setForm((p) => ({ ...p, photoUri: uri }));
+            if (Platform.OS === "web") {
+                const compressed = await compressImageWeb(asset.uri);
+                setForm((p) => ({ ...p, photoUri: compressed }));
+            } else {
+                const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+                setForm((p) => ({ ...p, photoUri: uri }));
+            }
         }
     }
 
@@ -170,8 +217,13 @@ export function InvoiceFormModal({
         });
         if (!result.canceled && result.assets.length > 0) {
             const asset = result.assets[0];
-            const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-            setForm((p) => ({ ...p, photoUri: uri }));
+            if (Platform.OS === "web") {
+                const compressed = await compressImageWeb(asset.uri);
+                setForm((p) => ({ ...p, photoUri: compressed }));
+            } else {
+                const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+                setForm((p) => ({ ...p, photoUri: uri }));
+            }
         }
     }
 
@@ -253,7 +305,12 @@ export function InvoiceFormModal({
             // PAYWALL_BLOCKED means the parent showed a paywall, keep the modal open silently
             if (err?.message !== "PAYWALL_BLOCKED") {
                 console.error("Error saving invoice from modal:", err);
-                Alert.alert("Error", "No se pudo guardar la factura. Intenta de nuevo.");
+                const msg = err?.message || String(err);
+                if (Platform.OS === "web") {
+                    alert("Error al guardar: " + msg);
+                } else {
+                    Alert.alert("Error", "No se pudo guardar la factura: " + msg);
+                }
             }
         } finally {
             setSaving(false);
