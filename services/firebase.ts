@@ -1,8 +1,6 @@
 import { initializeApp } from "firebase/app";
 import {
     getAuth,
-    initializeAuth,
-    browserLocalPersistence,
     GoogleAuthProvider,
     signInWithCredential,
     signOut,
@@ -21,18 +19,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-
-// Auth with explicit persistence — keeps session alive on mobile web (Vercel)
-let auth: ReturnType<typeof getAuth>;
-if (Platform.OS === "web") {
-    auth = initializeAuth(app, {
-        persistence: browserLocalPersistence,
-    });
-} else {
-    auth = getAuth(app);
-}
-export { auth };
-
+export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
