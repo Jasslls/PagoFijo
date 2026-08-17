@@ -1,11 +1,13 @@
 import { initializeApp } from "firebase/app";
 import {
     getAuth,
+    initializeAuth,
+    browserLocalPersistence,
     GoogleAuthProvider,
     signInWithCredential,
     signOut,
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, enableMultiTabIndexedDbPersistence } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { Platform } from "react-native";
 
@@ -19,10 +21,28 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+// Auth with explicit persistence — keeps session alive on mobile web (Vercel)
+let auth: ReturnType<typeof getAuth>;
+if (Platform.OS === "web") {
+    auth = initializeAuth(app, {
+        persistence: browserLocalPersistence,
+    });
+} else {
+    auth = getAuth(app);
+}
+export { auth };
+
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export const googleProvider = new GoogleAuthProvider();
+
+// Enable offline persistence for Firestore (faster loads, works offline)
+if (Platform.OS === "web") {
+    enableMultiTabIndexedDbPersistence(db).catch((err) => {
+        console.warn("Firestore persistence could not be enabled:", err.code);
+    });
+}
 
 export async function signInWithGoogleToken(idToken: string) {
     const credential = GoogleAuthProvider.credential(idToken);

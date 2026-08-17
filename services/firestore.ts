@@ -4,6 +4,7 @@ import {
     deleteDoc,
     doc,
     getDocs,
+    limit,
     orderBy,
     query,
     serverTimestamp,
@@ -11,6 +12,7 @@ import {
     where
 } from "firebase/firestore";
 import type { Activity, Client, Invoice } from "../models/types";
+import { GENERAL_CLIENT_ID } from "../models/types";
 import { db } from "./firebase";
 
 
@@ -19,6 +21,9 @@ const clientsColl = (uid: string) => collection(userDoc(uid), "clients");
 const invoicesColl = (uid: string, clientId: string) => collection(doc(clientsColl(uid), clientId), "invoices");
 const paymentsColl = (uid: string, clientId: string, invoiceId: string) =>
     collection(doc(invoicesColl(uid, clientId), invoiceId), "payments");
+
+// General invoices (no client) — stored directly under user
+const generalInvoicesColl = (uid: string) => collection(userDoc(uid), "generalInvoices");
 
 export async function updateUserSettings(uid: string, settings: any): Promise<void> {
     const ref = userDoc(uid);
@@ -56,27 +61,56 @@ export async function deleteClient(uid: string, clientId: string): Promise<void>
 }
 
 
+// ─── Invoices (client-specific + general) ────────────────────────────────────
+
+function isGeneralInvoice(clientId: string): boolean {
+    return !clientId || clientId === GENERAL_CLIENT_ID;
+}
+
 export async function getAllInvoices(uid: string): Promise<Invoice[]> {
     const clients = await getClients(uid);
 
-    // Consulta las facturas de todos los clientes en paralelo
-    const promises = clients.map(async (client) => {
+    // Fetch client invoices + general invoices in parallel
+    const clientPromises = clients.map(async (client) => {
         const q = query(invoicesColl(uid, client.id));
         const snap = await getDocs(q);
         return snap.docs.map(d => ({ id: d.id, clientId: client.id, ...d.data() } as Invoice));
     });
 
-    const results = await Promise.all(promises);
-    return results.reduce((acc: Invoice[], arr: Invoice[]) => acc.concat(arr), []);
+    const generalPromise = (async () => {
+        const q = query(generalInvoicesColl(uid));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, clientId: GENERAL_CLIENT_ID, ...d.data() } as Invoice));
+    })();
+
+    const [clientResults, generalResults] = await Promise.all([
+        Promise.all(clientPromises),
+        generalPromise
+    ]);
+
+    const allClientInvoices = clientResults.reduce((acc: Invoice[], arr: Invoice[]) => acc.concat(arr), []);
+    return allClientInvoices.concat(generalResults);
 }
 
 export async function getInvoicesByClient(uid: string, clientId: string): Promise<Invoice[]> {
+    if (isGeneralInvoice(clientId)) {
+        const q = query(generalInvoicesColl(uid));
+        const snap = await getDocs(q);
+        return snap.docs.map(d => ({ id: d.id, clientId: GENERAL_CLIENT_ID, ...d.data() } as Invoice));
+    }
     const q = query(invoicesColl(uid, clientId));
     const snap = await getDocs(q);
     return snap.docs.map(d => ({ id: d.id, clientId, ...d.data() } as Invoice));
 }
 
 export async function addInvoice(uid: string, clientId: string, invoice: Omit<Invoice, "id" | "clientId">): Promise<string> {
+    if (isGeneralInvoice(clientId)) {
+        const docRef = await addDoc(generalInvoicesColl(uid), {
+            ...invoice,
+            createdAt: serverTimestamp(),
+        });
+        return docRef.id;
+    }
     const docRef = await addDoc(invoicesColl(uid, clientId), {
         ...invoice,
         createdAt: serverTimestamp(),
@@ -85,11 +119,21 @@ export async function addInvoice(uid: string, clientId: string, invoice: Omit<In
 }
 
 export async function updateInvoice(uid: string, clientId: string, invoiceId: string, data: Partial<Omit<Invoice, "id" | "clientId">>): Promise<void> {
+    if (isGeneralInvoice(clientId)) {
+        const ref = doc(generalInvoicesColl(uid), invoiceId);
+        await updateDoc(ref, data);
+        return;
+    }
     const ref = doc(invoicesColl(uid, clientId), invoiceId);
     await updateDoc(ref, data);
 }
 
 export async function deleteInvoice(uid: string, clientId: string, invoiceId: string): Promise<void> {
+    if (isGeneralInvoice(clientId)) {
+        const ref = doc(generalInvoicesColl(uid), invoiceId);
+        await deleteDoc(ref);
+        return;
+    }
     const ref = doc(invoicesColl(uid, clientId), invoiceId);
     await deleteDoc(ref);
 }

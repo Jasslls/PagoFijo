@@ -1,6 +1,10 @@
 import { getAllInvoices, getClients, addInvoice, updateInvoice, pushActivity } from "./firestore";
 import { updateClientRiskFirestore } from "./riskEngine";
-import { Invoice, InvoiceStatus, InvoiceRecurrence } from "../models/types";
+import { Invoice, InvoiceStatus, InvoiceRecurrence, GENERAL_CLIENT_ID } from "../models/types";
+
+// Debounce: skip sync if it ran recently (within 30s)
+let _lastSyncTime = 0;
+const SYNC_DEBOUNCE_MS = 30_000;
 
 function getTodayYMD() {
     const d = new Date();
@@ -20,7 +24,13 @@ function addTime(dateStr: string, recurrence: InvoiceRecurrence): string {
     return d.toISOString().split("T")[0];
 }
 
-export async function syncBusinessIntelligence(uid: string) {
+export async function syncBusinessIntelligence(uid: string, force = false) {
+    const now = Date.now();
+    if (!force && now - _lastSyncTime < SYNC_DEBOUNCE_MS) {
+        return;
+    }
+    _lastSyncTime = now;
+
     try {
         console.log("Starting BI Sync...");
         

@@ -151,26 +151,34 @@ export default function DashboardScreen() {
       const newBalance = inv.amount - paid;
       const newStatus = newBalance <= 0 ? "Cobrada" : inv.status;
       
-      await updateInvoice(uid, inv.clientId, inv.id, {
-          paidAmount: paid,
-          status: newStatus
-      });
-
-      await pushActivity(uid, {
-          type: "invoice_partial_paid",
-          invoiceId: inv.id,
-          clientId: inv.clientId,
-          amount: amount,
-          status: newStatus,
-          desc: `Abono a ${inv.id}`,
-          ts: new Date().toISOString()
-      });
-
-      await syncBusinessIntelligence(uid);
+      // Optimistic update
+      const updated: Invoice = { ...inv, paidAmount: paid, status: newStatus };
+      setInvoices((prev) => prev.map((item) => (item.id === inv.id ? updated : item)));
       if (detailsInvoice?.id === inv.id) {
-          setDetailsInvoice({ ...inv, paidAmount: paid, status: newStatus });
+          setDetailsInvoice(updated);
       }
-      loadData();
+
+      try {
+          await updateInvoice(uid, inv.clientId, inv.id, {
+              paidAmount: paid,
+              status: newStatus,
+          });
+
+          await pushActivity(uid, {
+              type: "invoice_partial_paid",
+              invoiceId: inv.id,
+              clientId: inv.clientId,
+              amount: amount,
+              status: newStatus,
+              desc: `Abono de ${money(amount)} a ${inv.id}`,
+              ts: new Date().toISOString(),
+          });
+
+          syncBusinessIntelligence(uid).catch((err) => console.error("Background sync failed:", err));
+      } catch (err) {
+          console.error("Dashboard abono error:", err);
+          loadData();
+      }
   }
 
   return (
@@ -289,7 +297,7 @@ export default function DashboardScreen() {
 
         {recentInvoices.map((inv) => {
           const c = clientById.get(inv.clientId);
-          const clientName = c?.company ?? c?.name ?? "Cliente";
+          const clientName = c ? (c.company ?? c.name) : "Cobro General";
           const subtitle = `${inv.desc} • Vence: ${inv.due}${inv.paidAmount && inv.paidAmount > 0 ? ` • Resta: ${money(inv.amount - inv.paidAmount)}` : ''}`;
           return (
             <InvoiceRow
@@ -313,7 +321,7 @@ export default function DashboardScreen() {
           visible={detailsModalOpen}
           onClose={() => setDetailsModalOpen(false)}
           invoice={detailsInvoice}
-          clientName={detailsInvoice ? (clientById.get(detailsInvoice.clientId)?.company || clientById.get(detailsInvoice.clientId)?.name || "Cliente") : ""}
+          clientName={detailsInvoice ? (clientById.get(detailsInvoice.clientId)?.company || clientById.get(detailsInvoice.clientId)?.name || "Cobro General") : ""}
           onAbonar={handleAbonar}
       />
     </SafeAreaView>

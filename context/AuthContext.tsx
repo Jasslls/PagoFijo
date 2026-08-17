@@ -47,10 +47,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         let isFirstAuthEvent = true;
 
+        // Restore session from local storage immediately (avoids login flash)
+        getSession().then((cachedSession) => {
+            if (cachedSession) {
+                setUser(cachedSession);
+            }
+        }).catch(console.error);
+
         const unsubscribe = onAuthStateChanged(auth, async (fbUser: any) => {
             if (!fbUser) {
-                await clearSession();
-                setUser(null);
+                // Only clear if we actually had a session — avoids clearing on slow Firebase init
+                const existingSession = await getSession();
+                if (existingSession) {
+                    await clearSession();
+                    setUser(null);
+                }
             } else {
                 const session = await getSession();
                 if (!session || session.id !== fbUser.uid) {

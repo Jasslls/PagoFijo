@@ -153,10 +153,12 @@ const getStyles = (colors: typeof lightColors) => StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
         borderRadius: 12,
-        paddingHorizontal: 12,
-        height: 44,
+        paddingHorizontal: 14,
+        height: 48,
+        fontSize: 16,
         marginBottom: 10,
         color: colors.text,
+        backgroundColor: colors.bg,
     },
 
     footer: {

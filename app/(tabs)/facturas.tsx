@@ -258,11 +258,6 @@ export default function FacturasScreen() {
             setPaywallVisible(true);
             return;
         }
-        if (!clients.length) {
-            await setItem(KEY_CLIENTS_INTENT, true);
-            router.push("/clientes");
-            return;
-        }
         setEditing(null);
         setModalOpen(true);
     }
@@ -274,6 +269,8 @@ export default function FacturasScreen() {
 
     async function saveInvoiceData(data: Omit<Invoice, "id"> & { id?: string }) {
         if (!uid) return;
+        const effectiveClientId = data.clientId || GENERAL_CLIENT_ID;
+
         try {
             if (editing?.id) {
                 let newStatus = data.status;
@@ -294,41 +291,49 @@ export default function FacturasScreen() {
                     currentProofUri = data.proofUri;
                 }
 
-                // Save invoice immediately WITHOUT waiting for image upload
-                await updateInvoice(uid, data.clientId, editing.id, {
+                const updatedInv: Invoice = {
+                    ...editing,
+                    clientId: effectiveClientId,
                     desc: data.desc,
                     amount: data.amount,
                     due: data.due,
                     status: newStatus,
                     proofUri: currentProofUri,
+                    recurrence: data.recurrence,
+                };
+
+                // Optimistic UI update
+                setInvoices((prev) => prev.map((item) => (item.id === editing.id ? updatedInv : item)));
+
+                // Save invoice immediately
+                await updateInvoice(uid, effectiveClientId, editing.id, {
+                    desc: data.desc,
+                    amount: data.amount,
+                    due: data.due,
+                    status: newStatus,
+                    proofUri: currentProofUri,
+                    recurrence: data.recurrence,
                 });
 
                 await pushActivity(uid, {
                     type: "invoice_updated",
                     invoiceId: editing.id,
-                    clientId: data.clientId,
+                    clientId: effectiveClientId,
                     amount: data.amount,
                     status: newStatus,
                     desc: data.desc,
                     due: data.due,
-                    ts: new Date().toISOString()
+                    ts: new Date().toISOString(),
                 });
 
-                // Upload image in background, then update proofUri (only if it is a new local image)
+                // Background image upload if new local file
                 if (data.proofUri && !data.proofUri.startsWith("https://firebasestorage.googleapis.com") && !data.proofUri.startsWith("data:")) {
-                    const clientId = data.clientId;
                     const invoiceId = editing.id;
                     uploadImageAsync(uid, data.proofUri)
-                        .then(url => updateInvoice(uid, clientId, invoiceId, { proofUri: url }))
+                        .then((url) => updateInvoice(uid, effectiveClientId, invoiceId, { proofUri: url }))
                         .then(() => loadAll())
-                        .catch(err => {
+                        .catch((err) => {
                             console.error("Background image upload failed:", err);
-                            const msg = "La factura se guardó, pero la foto no se pudo subir: " + (err.message || err);
-                            if (Platform.OS === "web") {
-                                alert(msg);
-                            } else {
-                                Alert.alert("Error de subida", msg);
-                            }
                         });
                 }
             } else {
@@ -338,54 +343,55 @@ export default function FacturasScreen() {
                 }
                 const id = nextInvoiceId();
 
-                // Save invoice immediately WITHOUT waiting for image upload
-                const docId = await addInvoice(uid, data.clientId, {
+                const newInv: Invoice = {
+                    id,
+                    clientId: effectiveClientId,
                     desc: data.desc,
                     amount: data.amount,
                     due: data.due,
                     status: data.status,
                     proofUri: (data.proofUri && data.proofUri.startsWith("data:")) ? data.proofUri : "",
+                    recurrence: data.recurrence,
+                };
+
+                // Optimistic UI update
+                setInvoices((prev) => [newInv, ...prev]);
+
+                const docId = await addInvoice(uid, effectiveClientId, {
+                    desc: data.desc,
+                    amount: data.amount,
+                    due: data.due,
+                    status: data.status,
+                    proofUri: (data.proofUri && data.proofUri.startsWith("data:")) ? data.proofUri : "",
+                    recurrence: data.recurrence,
                 });
 
                 await pushActivity(uid, {
                     type: "invoice_created",
                     invoiceId: id,
-                    clientId: data.clientId,
+                    clientId: effectiveClientId,
                     amount: data.amount,
                     status: data.status,
                     desc: data.desc,
                     due: data.due,
-                    ts: new Date().toISOString()
+                    ts: new Date().toISOString(),
                 });
 
-                // Upload image in background, then update proofUri (only if it is a new local image)
                 if (data.proofUri && !data.proofUri.startsWith("data:")) {
-                    const clientId = data.clientId;
                     uploadImageAsync(uid, data.proofUri)
-                        .then(url => updateInvoice(uid, clientId, docId, { proofUri: url }))
+                        .then((url) => updateInvoice(uid, effectiveClientId, docId, { proofUri: url }))
                         .then(() => loadAll())
-                        .catch(err => {
+                        .catch((err) => {
                             console.error("Background image upload failed:", err);
-                            const msg = "La factura se creó, pero la foto no se pudo subir: " + (err.message || err);
-                            if (Platform.OS === "web") {
-                                alert(msg);
-                            } else {
-                                Alert.alert("Error de subida", msg);
-                            }
                         });
                 }
             }
             
-            // Update UI immediately - invoice is already saved
-            loadAll();
-            
-            // Sync BI in background
-            syncBusinessIntelligence(uid)
-                .then(() => loadAll())
-                .catch(err => console.error("Background sync failed:", err));
+            // Background sync
+            syncBusinessIntelligence(uid).catch((err) => console.error("Background sync failed:", err));
         } catch (error) {
             console.error("Error saving invoice:", error);
-            // Re-throw so InvoiceFormModal can catch it and show the error
+            loadAll();
             throw error;
         }
     }
@@ -396,10 +402,17 @@ export default function FacturasScreen() {
         const newBalance = inv.amount - paid;
         const newStatus = newBalance <= 0 ? "Cobrada" : inv.status;
         
+        // Optimistic UI update
+        const updated = { ...inv, paidAmount: paid, status: newStatus };
+        setInvoices((prev) => prev.map((item) => (item.id === inv.id ? updated : item)));
+        if (detailsInvoice?.id === inv.id) {
+            setDetailsInvoice(updated);
+        }
+
         try {
             await updateInvoice(uid, inv.clientId, inv.id, {
                 paidAmount: paid,
-                status: newStatus
+                status: newStatus,
             });
 
             await pushActivity(uid, {
@@ -408,21 +421,17 @@ export default function FacturasScreen() {
                 clientId: inv.clientId,
                 amount: amount,
                 status: newStatus,
-                desc: `Abono a ${inv.id}`,
-                ts: new Date().toISOString()
+                desc: `Abono de ${money(amount)} a ${inv.id}`,
+                ts: new Date().toISOString(),
             });
 
-            loadAll(); // Actualizar UI inmediatamente
-            if (detailsInvoice?.id === inv.id) {
-                setDetailsInvoice({ ...inv, paidAmount: paid, status: newStatus });
-            }
-
-            syncBusinessIntelligence(uid)
-                .then(() => loadAll())
-                .catch(err => console.error("Background sync failed:", err));
+            syncBusinessIntelligence(uid).catch((err) => console.error("Background sync failed:", err));
         } catch (error) {
-            console.error("Error register abono:", error);
-            Alert.alert("Error", "No se pudo registrar el abono.");
+            console.error("Error registering abono:", error);
+            loadAll();
+            const msg = "No se pudo registrar el abono.";
+            if (Platform.OS === "web") alert(msg);
+            else Alert.alert("Error", msg);
         }
     }
 
@@ -430,27 +439,35 @@ export default function FacturasScreen() {
         if (!uid || inv.status === "Cobrada") return;
 
         const run = async (photoUri?: string) => {
+            // Optimistic update
+            setInvoices((prev) =>
+                prev.map((item) =>
+                    item.id === inv.id
+                        ? { ...item, status: "Cobrada" as const, paidAmount: item.amount }
+                        : item
+                )
+            );
+            if (detailsInvoice?.id === inv.id) {
+                setDetailsInvoice({ ...detailsInvoice, status: "Cobrada", paidAmount: detailsInvoice.amount });
+            }
+
             try {
                 let uploadedUri = photoUri;
-                if (photoUri) {
+                if (photoUri && !photoUri.startsWith("https://firebasestorage.googleapis.com")) {
                     try {
                         uploadedUri = await uploadImageAsync(uid, photoUri);
                     } catch (err: any) {
                         console.error("Failed to upload markPaid image:", err);
-                        const msg = "No se pudo subir la foto del comprobante, pero se cobrará igualmente: " + (err.message || err);
-                        if (Platform.OS === "web") {
-                            alert(msg);
-                        } else {
-                            Alert.alert("Advertencia", msg);
-                        }
                         uploadedUri = undefined;
                     }
                 }
 
                 await updateInvoice(uid, inv.clientId, inv.id, { 
                     status: "Cobrada",
-                    proofUri: uploadedUri
+                    paidAmount: inv.amount,
+                    proofUri: uploadedUri || inv.proofUri || "",
                 });
+
                 await pushActivity(uid, {
                     type: "invoice_paid",
                     invoiceId: inv.id,
@@ -460,16 +477,16 @@ export default function FacturasScreen() {
                     desc: inv.desc,
                     due: inv.due,
                     ts: new Date().toISOString(),
-                    proofUri: uploadedUri
+                    proofUri: uploadedUri,
                 });
-                loadAll(); // Actualizar UI inmediatamente
-                
-                syncBusinessIntelligence(uid)
-                    .then(() => loadAll())
-                    .catch(err => console.error("Background sync failed:", err));
+
+                syncBusinessIntelligence(uid).catch((err) => console.error("Background sync failed:", err));
             } catch (error) {
                 console.error("Error markPaid:", error);
-                Alert.alert("Error", "No se pudo marcar como cobrada.");
+                loadAll();
+                const msg = "No se pudo marcar como cobrada.";
+                if (Platform.OS === "web") alert(msg);
+                else Alert.alert("Error", msg);
             }
         };
 
@@ -485,21 +502,24 @@ export default function FacturasScreen() {
             if (!result.canceled) {
                 const asset = result.assets[0];
                 const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-                run(uri);
+                await run(uri);
             } else {
-                run(); // Mark as paid without photo
+                await run();
             }
         };
 
-        if (Platform.OS === "web") return run();
+        if (Platform.OS === "web") {
+            await run();
+            return;
+        }
 
         Alert.alert(
             "Marcar como cobrada", 
             `¿Marcar ${inv.id} como cobrada?`, 
             [
                 { text: "Cancelar", style: "cancel" },
-                { text: "Cobrar", onPress: () => run() },
-                { text: "Subir Comprobante", onPress: pickImageAndPaid },
+                { text: "Cobrar", onPress: () => void run() },
+                { text: "Subir Comprobante", onPress: () => void pickImageAndPaid() },
             ]
         );
     }
@@ -507,6 +527,12 @@ export default function FacturasScreen() {
     async function handleDeleteInvoice(inv: Invoice) {
         if (!uid) return;
         const run = async () => {
+            // Optimistic update
+            setInvoices((prev) => prev.filter((item) => item.id !== inv.id));
+            if (detailsInvoice?.id === inv.id) {
+                setDetailsModalOpen(false);
+            }
+
             try {
                 await deleteInvoice(uid, inv.clientId, inv.id);
                 await pushActivity(uid, {
@@ -517,24 +543,28 @@ export default function FacturasScreen() {
                     status: inv.status,
                     desc: inv.desc,
                     due: inv.due,
-                    ts: new Date().toISOString()
+                    ts: new Date().toISOString(),
                 });
-                loadAll(); // Actualizar UI inmediatamente
-                
-                syncBusinessIntelligence(uid)
-                    .then(() => loadAll())
-                    .catch(err => console.error("Background sync failed:", err));
+                syncBusinessIntelligence(uid).catch((err) => console.error("Background sync failed:", err));
             } catch (error) {
                 console.error("Error deleteInvoice:", error);
-                Alert.alert("Error", "No se pudo eliminar la factura.");
+                loadAll();
+                const msg = "No se pudo eliminar la factura.";
+                if (Platform.OS === "web") alert(msg);
+                else Alert.alert("Error", msg);
             }
         };
 
-        if (Platform.OS === "web") return run();
+        if (Platform.OS === "web") {
+            if (window.confirm(`¿Eliminar la factura ${inv.id}?`)) {
+                await run();
+            }
+            return;
+        }
 
         Alert.alert("Eliminar factura", `¿Eliminar ${inv.id}?`, [
             { text: "Cancelar", style: "cancel" },
-            { text: "Eliminar", style: "destructive", onPress: run },
+            { text: "Eliminar", style: "destructive", onPress: () => void run() },
         ]);
     }
 
@@ -622,11 +652,16 @@ export default function FacturasScreen() {
                 <View style={{ gap: 12 }}>
                     {filtered.map((inv) => {
                         const c = clientById.get(inv.clientId);
+                        const isGeneral = !inv.clientId || inv.clientId === "__general__" || !c;
+                        const clientDisplayName = c 
+                            ? (c.company ? `${c.company} - ${c.name}` : c.name) 
+                            : "Cobro General";
+
                         return (
                             <InvoiceCard
                                 key={inv.id}
                                 id={inv.id}
-                                clientName={c ? (c.company ? `${c.company} - ${c.name}` : c.name) : "Cliente"}
+                                clientName={clientDisplayName}
                                 desc={inv.desc}
                                 amount={money(inv.amount)}
                                 dueLabel={prettyDue(inv.due)}
@@ -643,14 +678,21 @@ export default function FacturasScreen() {
                                 onMarkPaid={() => markPaid(inv)}
                                 proofUri={inv.proofUri}
                                 onShare={() => {
-                                    if (c) generateInvoicePDF(inv, c);
+                                    const clientData = c || {
+                                        id: "__general__",
+                                        name: "Cliente General",
+                                        company: "Cobro General",
+                                        email: "",
+                                        phone: "",
+                                        rfc: "",
+                                    };
+                                    generateInvoicePDF(inv, clientData);
                                 }}
-                                onWhatsApp={() => {
-                                    if (!c) return;
+                                onWhatsApp={c?.phone ? () => {
                                     setReminderClient(c);
                                     setReminderInvoice(inv);
                                     setReminderModalOpen(true);
-                                }}
+                                } : undefined}
                             />
                         );
                     })}
@@ -668,7 +710,7 @@ export default function FacturasScreen() {
                     visible={detailsModalOpen}
                     onClose={() => setDetailsModalOpen(false)}
                     invoice={detailsInvoice}
-                    clientName={detailsInvoice ? (clientById.get(detailsInvoice.clientId)?.company || clientById.get(detailsInvoice.clientId)?.name || "Cliente") : ""}
+                    clientName={detailsInvoice ? (clientById.get(detailsInvoice.clientId)?.company || clientById.get(detailsInvoice.clientId)?.name || "Cobro General") : ""}
                     onAbonar={handleAbonar}
                 />
 
@@ -780,7 +822,7 @@ const getStyles = (colors: typeof lightColors) => StyleSheet.create({
         marginBottom: 10,
     },
     searchIcon: { fontSize: 16 },
-    search: { flex: 1, color: colors.text, fontWeight: "600" },
+    search: { flex: 1, color: colors.text, fontWeight: "600", fontSize: 16 },
 
     filterRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 6 },
     filterPill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },

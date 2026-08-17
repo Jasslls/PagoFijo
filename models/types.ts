@@ -9,12 +9,15 @@ export type Client = {
     riskScore?: number;
 };
 
+// Special ID for invoices without a specific client
+export const GENERAL_CLIENT_ID = "__general__";
+
 export type InvoiceStatus = "Vencida" | "Pendiente" | "Cobrada";
 export type InvoiceRecurrence = "none" | "semanal" | "mensual" | "anual";
 
 export type Invoice = {
     id: string;        // FAC-2026-001
-    clientId: string;  // referencia a Client.id
+    clientId: string;  // referencia a Client.id OR "__general__" for clientless invoices
     desc: string;
     amount: number;
     due: string;       // YYYY-MM-DD

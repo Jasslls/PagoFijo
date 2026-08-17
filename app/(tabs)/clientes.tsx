@@ -321,7 +321,7 @@ const getStyles = (colors: typeof lightColors) => StyleSheet.create({
         marginBottom: 14,
     },
     searchIcon: { fontSize: 16 },
-    search: { flex: 1, color: colors.text, fontWeight: "600" },
+    search: { flex: 1, color: colors.text, fontWeight: "600", fontSize: 16 },
 
     grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
     cell: { width: "100%", maxWidth: 420, flexGrow: 1, flexBasis: 300 },

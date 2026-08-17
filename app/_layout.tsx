@@ -1,8 +1,7 @@
-// app/_layout.tsx
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { Stack } from "expo-router";
 import React, { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, Platform, View } from "react-native";
 import { useAppColors } from "../themes/colors";
 import { requestNotificationPermissions } from "../services/notifications";
 import { AuthProvider, useAuth } from "../context/AuthContext";
@@ -12,6 +11,20 @@ import { BusinessOnboardingModal } from "../components/BusinessOnboardingModal";
 export default function RootLayout() {
   useEffect(() => {
     requestNotificationPermissions();
+
+    // Prevent accidental zoom on mobile web
+    if (Platform.OS === "web" && typeof document !== "undefined") {
+      let meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) {
+        meta = document.createElement("meta");
+        meta.setAttribute("name", "viewport");
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute(
+        "content",
+        "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      );
+    }
   }, []);
 
   return (
